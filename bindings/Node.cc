@@ -84,7 +84,7 @@ unsigned Node::getChildCount(void) const
 
 Node *Node::getParent(void)
 {
-  auto nodePtr = YGNodeGetParent(m_node);
+  auto nodePtr = YGNodeGetOwner(m_node);
 
   if (nodePtr == nullptr)
     return nullptr;
