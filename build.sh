@@ -20,6 +20,7 @@ docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u emscripten -t trzeci/emscripten:sd
   -s ASSERTIONS=0 \
   -s SINGLE_FILE=1 \
   -s NO_FILESYSTEM=1 \
+  -s ALLOW_MEMORY_GROWTH=1 \
   -s MODULARIZE=1 \
   -s "DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=['memcpy','memset','malloc','free','strlen']" \
   -o build/$OUTPUT_FILENAME
