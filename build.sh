@@ -9,7 +9,7 @@ rm -rf build && mkdir -p build
 # compile to wasm
 docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u emscripten -t trzeci/emscripten:sdk-incoming-64bit emcc \
   yoga/*.cpp bindings/*.cc \
-  --bind -O3 --memory-init-file 0 --closure 1 --llvm-lto 1 \
+  --bind -Os --memory-init-file 0 --closure 1 --llvm-lto 1 \
   -fno-exceptions \
   -s BINARYEN=1 \
   -s "BINARYEN_METHOD='native-wasm'" \
