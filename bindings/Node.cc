@@ -408,7 +408,7 @@ EMSCRIPTEN_BINDINGS(YGNode)
     .field("height", &Layout::height)
     ;
 
-  // constant("YGValueUndefined", YGValueUndefined);
+  constant("YGUndefined", YGUndefined);
   // constant("YGValueAuto", YGValueAuto);
 
   class_<Node>("YGNode")

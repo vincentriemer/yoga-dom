@@ -37,8 +37,8 @@ export default new Promise(function(resolve) {
 
     patch(Module.YGNode.prototype, "calculateLayout", function(
       original,
-      width = NaN,
-      height = NaN,
+      width = Module.YGUndefined,
+      height = Module.YGUndefined,
       direction = Module.YGDirection.ltr
     ) {
       return original.call(this, width, height, direction);
@@ -61,7 +61,7 @@ export default new Promise(function(resolve) {
         position: Module.YGPositionType,
         unit: Module.YGUnit,
         wrap: Module.YGWrap,
-        // undefinedValue: Module.YGValueUndefined,
+        undefinedValue: Module.YGUndefined,
         // autoValue: Module.YGValueAuto,
       },
     });
