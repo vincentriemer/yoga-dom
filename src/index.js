@@ -1,10 +1,11 @@
 import Yoga from "../build/yoga";
 
 function patch(prototype, name, fn) {
-  let original = prototype[name];
+  var original = prototype[name];
 
-  prototype[name] = function(...args) {
-    return fn.call(this, original, ...args);
+  prototype[name] = function() {
+    const originalArgs = Array.prototype.slice.call(arguments);
+    return fn.apply(this, [original].concat(originalArgs));
   };
 }
 
@@ -19,7 +20,7 @@ export default new Promise(function(resolve) {
     });
 
     patch(Module.YGNode.prototype, "freeRecursive", function() {
-      for (let t = 0, T = this.getChildCount(); t < T; ++t)
+      for (var t = 0, T = this.getChildCount(); t < T; ++t)
         this.getChild(0).freeRecursive();
       this.free();
     });
