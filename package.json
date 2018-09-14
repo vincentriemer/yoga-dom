@@ -7,7 +7,7 @@
   "main": "dist/Yoga.cjs.js",
   "module": "dist/Yoga.es.js",
   "files": [
-    "READNE.md",
+    "README.md",
     "dist"
   ],
   "scripts": {
