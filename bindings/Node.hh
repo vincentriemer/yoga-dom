@@ -20,6 +20,15 @@
   NODE_STYLE_PROPERTY(TYPE, NAME##Vertical, PARAM_NAME##Vertical);     \
   NODE_STYLE_PROPERTY(TYPE, NAME##All, PARAM_NAME##All);
 
+#define NODE_LAYOUT_PROPERTY(TYPE, NAME) \
+  TYPE getComputed##NAME(void) const;
+
+#define NODE_LAYOUT_EDGE_PROPERTY(TYPE, NAME, PARAM_NAME) \
+  NODE_LAYOUT_PROPERTY(TYPE, NAME##Left);                 \
+  NODE_LAYOUT_PROPERTY(TYPE, NAME##Right);                \
+  NODE_LAYOUT_PROPERTY(TYPE, NAME##Top);                  \
+  NODE_LAYOUT_PROPERTY(TYPE, NAME##Bottom);
+
 typedef YGSize (*JSMeasureFunction)(float width,
                                     YGMeasureMode widthMode,
                                     float height,
@@ -130,6 +139,14 @@ public: // Layout mutators
 
 public: // Layout getters
   Layout getComputedLayout(void) const;
+
+  NODE_LAYOUT_PROPERTY(float, Left);
+  NODE_LAYOUT_PROPERTY(float, Top);
+  NODE_LAYOUT_PROPERTY(float, Width);
+  NODE_LAYOUT_PROPERTY(float, Height);
+
+  NODE_LAYOUT_EDGE_PROPERTY(float, Border, border);
+  NODE_LAYOUT_EDGE_PROPERTY(float, Padding, padding);
 
 public: // HasNewLayout manipulators
   bool hasNewLayout(void) const;

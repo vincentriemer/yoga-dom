@@ -246,6 +246,18 @@ void Node::setHasNewLayout(bool hasNewLayout)
     return YGNodeStyleGet##name(m_node, edge);                       \
   }
 
+#define NODE_LAYOUT_PROPERTY_IMPL(type, name) \
+  type Node::getComputed##name(void) const    \
+  {                                           \
+    return YGNodeLayoutGet##name(m_node);     \
+  }
+
+#define NODE_LAYOUT_INDV_EDGE_PROPERTY_IMPL(type, methodName, name, edge) \
+  type Node::getComputed##methodName(void) const                     \
+  {                                                                  \
+    return YGNodeLayoutGet##name(m_node, edge);                      \
+  }
+
 #define NODE_STYLE_INDV_EDGE_UNIT_PROPERTY_IMPL(methodName, name, paramName, edge) \
   void Node::set##methodName(const YGValue paramName)                              \
   {                                                                                \
@@ -336,6 +348,12 @@ void Node::setHasNewLayout(bool hasNewLayout)
   NODE_STYLE_INDV_EDGE_UNIT_AUTO_PROPERTY_IMPL(name##Vertical, name, paramName##Vertical, YGEdgeVertical);       \
   NODE_STYLE_INDV_EDGE_UNIT_AUTO_PROPERTY_IMPL(name##All, name, paramName##All, YGEdgeAll);
 
+#define NODE_LAYOUT_EDGE_PROPERTY_IMPL(type, name) \
+  NODE_LAYOUT_INDV_EDGE_PROPERTY_IMPL(type, name##Left, name, YGEdgeLeft);     \
+  NODE_LAYOUT_INDV_EDGE_PROPERTY_IMPL(type, name##Right, name, YGEdgeRight);   \
+  NODE_LAYOUT_INDV_EDGE_PROPERTY_IMPL(type, name##Top, name, YGEdgeTop);       \
+  NODE_LAYOUT_INDV_EDGE_PROPERTY_IMPL(type, name##Bottom, name, YGEdgeBottom);
+
 NODE_STYLE_PROPERTY_IMPL(YGDirection, Direction, direction);
 NODE_STYLE_PROPERTY_IMPL(YGFlexDirection, FlexDirection, flexDirection);
 NODE_STYLE_PROPERTY_IMPL(YGJustify, JustifyContent, justifyContent);
@@ -368,7 +386,18 @@ NODE_STYLE_PROPERTY_SETTER_IMPL(float, FlexShrink, flexShrink);
 float Node::getFlexShrink() const { return NULL; } // yoga doesn't provide a getter
 NODE_STYLE_PROPERTY_UNIT_AUTO_IMPL(FlexBasis, flexBasis);
 
+NODE_LAYOUT_PROPERTY_IMPL(float, Left);
+NODE_LAYOUT_PROPERTY_IMPL(float, Top);
+NODE_LAYOUT_PROPERTY_IMPL(float, Width);
+NODE_LAYOUT_PROPERTY_IMPL(float, Height);
+
+NODE_LAYOUT_EDGE_PROPERTY_IMPL(float, Border);
+NODE_LAYOUT_EDGE_PROPERTY_IMPL(float, Padding);
+
 using namespace emscripten;
+
+#define EMBIND_NODE_READONLY_PROP_BINDING(exposedName, propName) \
+  .property(#exposedName, &Node::get##propName)
 
 #define EMBIND_NODE_PROP_BINDING(exposedName, propName) \
   .property(#exposedName, &Node::get##propName, &Node::set##propName)
@@ -383,6 +412,12 @@ using namespace emscripten;
   EMBIND_NODE_PROP_BINDING(exposedName##Horizontal, propName##Horizontal)  \
   EMBIND_NODE_PROP_BINDING(exposedName##Vertical, propName##Vertical)      \
   EMBIND_NODE_PROP_BINDING(exposedName, propName##All)
+
+#define EMBIND_NODE_EDGE_LAYOUT_PROP_BINDING(exposedName, propName)        \
+  EMBIND_NODE_READONLY_PROP_BINDING(exposedName##Left, propName##Left)     \
+  EMBIND_NODE_READONLY_PROP_BINDING(exposedName##Right, propName##Right)   \
+  EMBIND_NODE_READONLY_PROP_BINDING(exposedName##Top, propName##Top)       \
+  EMBIND_NODE_READONLY_PROP_BINDING(exposedName##Bottom, propName##Bottom)
 
 EMSCRIPTEN_BINDINGS(YGNode)
 {
@@ -432,7 +467,7 @@ EMSCRIPTEN_BINDINGS(YGNode)
     .function("getComputedLayout", &Node::getComputedLayout)
 
     .property("hasNewLayout", &Node::hasNewLayout, &Node::setHasNewLayout)
-    
+
     EMBIND_NODE_PROP_BINDING(direction, Direction)
     EMBIND_NODE_PROP_BINDING(flexDirection, FlexDirection)
     EMBIND_NODE_PROP_BINDING(justifyContent, JustifyContent)
@@ -467,5 +502,13 @@ EMSCRIPTEN_BINDINGS(YGNode)
     EMBIND_NODE_PROP_BINDING(maxHeight, MaxHeight)
 
     EMBIND_NODE_PROP_BINDING(aspectRatio, AspectRatio)
+
+    EMBIND_NODE_READONLY_PROP_BINDING(computedLeft, ComputedLeft)
+    EMBIND_NODE_READONLY_PROP_BINDING(computedTopt, ComputedTop)
+    EMBIND_NODE_READONLY_PROP_BINDING(computedWidth, ComputedWidth)
+    EMBIND_NODE_READONLY_PROP_BINDING(computedHeight, ComputedHeight)
+
+    EMBIND_NODE_EDGE_LAYOUT_PROP_BINDING(computedPadding, ComputedPadding)
+    EMBIND_NODE_EDGE_LAYOUT_PROP_BINDING(computedBorder, ComputedBorder)
     ;
 }
