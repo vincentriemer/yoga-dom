@@ -17,17 +17,21 @@
     "build:es": "rollup --silent -c rollup.config.es.js",
     "build:umd": "rollup --silent -c rollup.config.umd.js",
     "build:commonjs": "rollup --silent -c rollup.config.cjs.js",
+    "build:iife": "rollup --silent -c rollup.config.iife.js",
     "prebuild:bundle": "npm run clean:bundle",
-    "build:bundle": "npm run build:umd && npm run build:commonjs && npm run build:es && npm run build:min",
+    "build:bundle": "npm run build:umd && npm run build:commonjs && npm run build:es && npm run build:iife && npm run build:min",
     "build": "npm run build:wasm && npm run build:bundle",
+    "postbuild:bundle": "cp build/yoga.js dist/yoga.worker.js",
     "bench": "node tests/run-bench $(find tests/Benchmarks -name '*.js')"
   },
   "devDependencies": {
     "rimraf": "^2.6.2",
     "rollup": "^0.53.2",
     "rollup-plugin-commonjs": "^8.2.6",
+    "rollup-plugin-file-as-blob": "^1.1.2",
     "rollup-plugin-filesize": "^1.5.0",
     "rollup-plugin-node-builtins": "^2.1.2",
+    "rollup-plugin-terser": "^3.0.0",
     "rollup-plugin-uglify": "^2.0.1",
     "uglify-es": "^3.3.4"
   }

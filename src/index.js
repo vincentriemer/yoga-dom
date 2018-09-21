@@ -1,4 +1,4 @@
-import Yoga from "../build/yoga";
+import Yoga from "../build/yoga.module";
 
 function patch(prototype, name, fn) {
   var original = prototype[name];
@@ -14,7 +14,8 @@ function patch(prototype, name, fn) {
 // causes an infinite loop, so we manually resolve/wrap the call in
 // a native promise
 export default new Promise(function(resolve) {
-  Yoga().then(function(Module) {
+  const Module = Yoga;
+  Module["onRuntimeInitialized"] = function() {
     patch(Module.YGNode.prototype, "free", function() {
       this.delete();
     });
@@ -66,5 +67,5 @@ export default new Promise(function(resolve) {
         // autoValue: Module.YGValueAuto,
       },
     });
-  });
+  };
 });

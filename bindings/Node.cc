@@ -8,7 +8,10 @@
  */
 
 #include <algorithm>
+
+#include <pthread.h>
 #include <emscripten/bind.h>
+#include <emscripten/threading.h>
 
 #include "../yoga/Yoga.h"
 
@@ -16,11 +19,33 @@
 #include "./Config.hh"
 #include "./Node.hh"
 
+struct calculate_args
+{
+  YGNodeRef m_node;
+  float width;
+  float height;
+  YGDirection direction;
+};
+
+void *thrCalculateLayout(void *arguments)
+{
+  struct calculate_args *args = (struct calculate_args *)arguments;
+  YGNodeCalculateLayout(args->m_node, args->width, args->height, args->direction);
+  pthread_exit(NULL);
+  return NULL;
+}
+
 static YGSize globalMeasureFunc(YGNodeRef nodeRef, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode)
 {
   Node const &node = *reinterpret_cast<Node const *>(YGNodeGetContext(nodeRef));
 
+  // auto measureFunc = [](Node *node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode) {
+  //   return node->callMeasureFunc(width, widthMode, height, heightMode);
+  // };
+
   YGSize size = node.callMeasureFunc(width, widthMode, height, heightMode);
+  // YGSize size = emscripten_sync_run_in_main_thread(measureFunc, width, widthMode, height, heightMode);
+  // YGSize *size = (YGSize*)emscripten_sync_run_in_main_runtime_thread(EM_FUNC_SIG_V, measureFunc, &node, width, widthMode, height, heightMode);
 
   return size;
 }
@@ -116,7 +141,11 @@ void Node::unsetMeasureFunc(void)
 
 YGSize Node::callMeasureFunc(float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode) const
 {
-  return m_measureCb->measure(width, widthMode, height, heightMode);
+  MeasureCallback *wrapper = m_measureCb.get();
+  std::function<YGSize()> f_call = std::bind(&MeasureCallback::measure, wrapper, width, widthMode, height, heightMode);
+  YGSize *size = (YGSize *)emscripten_sync_run_in_main_runtime_thread(EM_FUNC_SIG_V, &f_call);
+  return *size;
+  // return m_measureCb->measure(width, widthMode, height, heightMode);
 }
 
 void Node::markDirty(void)
@@ -131,7 +160,17 @@ bool Node::isDirty(void) const
 
 void Node::calculateLayout(float width, float height, YGDirection direction)
 {
-  YGNodeCalculateLayout(m_node, width, height, direction);
+  pthread_t thr;
+  struct calculate_args args;
+  args.m_node = m_node;
+  args.width = width;
+  args.height = height;
+  args.direction = direction;
+
+  int s = pthread_create(&thr, NULL, &thrCalculateLayout, (void *)&args);
+  // YGNodeCalculateLayout(m_node, width, height, direction);
+
+  pthread_join(thr, NULL);
 }
 
 Layout Node::getComputedLayout(void) const
@@ -237,13 +276,13 @@ void Node::setHasNewLayout(bool hasNewLayout)
   }
 
 #define NODE_STYLE_INDV_EDGE_PROPERTY_IMPL(type, methodName, name, paramName, edge) \
-  void Node::set##methodName(const type paramName)                   \
-  {                                                                  \
-    YGNodeStyleSet##name(m_node, edge, paramName);                   \
-  }                                                                  \
-  type Node::get##methodName(void) const                             \
-  {                                                                  \
-    return YGNodeStyleGet##name(m_node, edge);                       \
+  void Node::set##methodName(const type paramName)                                  \
+  {                                                                                 \
+    YGNodeStyleSet##name(m_node, edge, paramName);                                  \
+  }                                                                                 \
+  type Node::get##methodName(void) const                                            \
+  {                                                                                 \
+    return YGNodeStyleGet##name(m_node, edge);                                      \
   }
 
 #define NODE_STYLE_INDV_EDGE_UNIT_PROPERTY_IMPL(methodName, name, paramName, edge) \
@@ -251,20 +290,20 @@ void Node::setHasNewLayout(bool hasNewLayout)
   {                                                                                \
     switch (paramName.unit)                                                        \
     {                                                                              \
-      case YGUnitPercent:                                                          \
-      {                                                                            \
-        YGNodeStyleSet##name##Percent(m_node, edge, paramName.value);              \
-        break;                                                                     \
-      }                                                                            \
-      case YGUnitPoint:                                                            \
-      {                                                                            \
-        YGNodeStyleSet##name(m_node, edge, paramName.value);                       \
-        break;                                                                     \
-      }                                                                            \
-      default:                                                                     \
-      {                                                                            \
-        break;                                                                     \
-      }                                                                            \
+    case YGUnitPercent:                                                            \
+    {                                                                              \
+      YGNodeStyleSet##name##Percent(m_node, edge, paramName.value);                \
+      break;                                                                       \
+    }                                                                              \
+    case YGUnitPoint:                                                              \
+    {                                                                              \
+      YGNodeStyleSet##name(m_node, edge, paramName.value);                         \
+      break;                                                                       \
+    }                                                                              \
+    default:                                                                       \
+    {                                                                              \
+      break;                                                                       \
+    }                                                                              \
     }                                                                              \
   }                                                                                \
   YGValue Node::get##methodName(void) const                                        \
@@ -277,25 +316,25 @@ void Node::setHasNewLayout(bool hasNewLayout)
   {                                                                                     \
     switch (paramName.unit)                                                             \
     {                                                                                   \
-      case YGUnitAuto:                                                                  \
-      {                                                                                 \
-        YGNodeStyleSet##name##Auto(m_node, edge);                                       \
-        break;                                                                          \
-      }                                                                                 \
-      case YGUnitPercent:                                                               \
-      {                                                                                 \
-        YGNodeStyleSet##name##Percent(m_node, edge, paramName.value);                   \
-        break;                                                                          \
-      }                                                                                 \
-      case YGUnitPoint:                                                                 \
-      {                                                                                 \
-        YGNodeStyleSet##name(m_node, edge, paramName.value);                            \
-        break;                                                                          \
-      }                                                                                 \
-      default:                                                                          \
-      {                                                                                 \
-        break;                                                                          \
-      }                                                                                 \
+    case YGUnitAuto:                                                                    \
+    {                                                                                   \
+      YGNodeStyleSet##name##Auto(m_node, edge);                                         \
+      break;                                                                            \
+    }                                                                                   \
+    case YGUnitPercent:                                                                 \
+    {                                                                                   \
+      YGNodeStyleSet##name##Percent(m_node, edge, paramName.value);                     \
+      break;                                                                            \
+    }                                                                                   \
+    case YGUnitPoint:                                                                   \
+    {                                                                                   \
+      YGNodeStyleSet##name(m_node, edge, paramName.value);                              \
+      break;                                                                            \
+    }                                                                                   \
+    default:                                                                            \
+    {                                                                                   \
+      break;                                                                            \
+    }                                                                                   \
     }                                                                                   \
   }                                                                                     \
   YGValue Node::get##methodName(void) const                                             \
@@ -373,99 +412,94 @@ using namespace emscripten;
 #define EMBIND_NODE_PROP_BINDING(exposedName, propName) \
   .property(#exposedName, &Node::get##propName, &Node::set##propName)
 
-#define EMBIND_NODE_EDGE_PROP_BINDING(exposedName, propName)               \
-  EMBIND_NODE_PROP_BINDING(exposedName##Left, propName##Left)              \
-  EMBIND_NODE_PROP_BINDING(exposedName##Right, propName##Right)            \
-  EMBIND_NODE_PROP_BINDING(exposedName##Top, propName##Top)                \
-  EMBIND_NODE_PROP_BINDING(exposedName##Bottom, propName##Bottom)          \
-  EMBIND_NODE_PROP_BINDING(exposedName##Start, propName##Start)            \
-  EMBIND_NODE_PROP_BINDING(exposedName##End, propName##End)                \
-  EMBIND_NODE_PROP_BINDING(exposedName##Horizontal, propName##Horizontal)  \
-  EMBIND_NODE_PROP_BINDING(exposedName##Vertical, propName##Vertical)      \
+#define EMBIND_NODE_EDGE_PROP_BINDING(exposedName, propName)              \
+  EMBIND_NODE_PROP_BINDING(exposedName##Left, propName##Left)             \
+  EMBIND_NODE_PROP_BINDING(exposedName##Right, propName##Right)           \
+  EMBIND_NODE_PROP_BINDING(exposedName##Top, propName##Top)               \
+  EMBIND_NODE_PROP_BINDING(exposedName##Bottom, propName##Bottom)         \
+  EMBIND_NODE_PROP_BINDING(exposedName##Start, propName##Start)           \
+  EMBIND_NODE_PROP_BINDING(exposedName##End, propName##End)               \
+  EMBIND_NODE_PROP_BINDING(exposedName##Horizontal, propName##Horizontal) \
+  EMBIND_NODE_PROP_BINDING(exposedName##Vertical, propName##Vertical)     \
   EMBIND_NODE_PROP_BINDING(exposedName, propName##All)
 
 EMSCRIPTEN_BINDINGS(YGNode)
 {
   class_<MeasureCallback>("MeasureCallback")
-    .function("measure", &MeasureCallback::measure, pure_virtual())
-    .allow_subclass<MeasureCallbackWrapper>("MeasureCallbackWrapper")
-    ;
+      .function("measure", &MeasureCallback::measure, pure_virtual())
+      .allow_subclass<MeasureCallbackWrapper>("MeasureCallbackWrapper");
 
   value_object<YGSize>("YGSize")
-    .field("width", &YGSize::width)
-    .field("height", &YGSize::height)
-    ;
+      .field("width", &YGSize::width)
+      .field("height", &YGSize::height);
 
   value_object<YGValue>("YGValue")
-    .field("value", &YGValue::value)
-    .field("unit", &YGValue::unit)
-    ;
+      .field("value", &YGValue::value)
+      .field("unit", &YGValue::unit);
 
   value_object<Layout>("YGLayout")
-    .field("left", &Layout::left)
-    .field("top", &Layout::top)
-    .field("width", &Layout::width)
-    .field("height", &Layout::height)
-    ;
+      .field("left", &Layout::left)
+      .field("top", &Layout::top)
+      .field("width", &Layout::width)
+      .field("height", &Layout::height);
 
   constant("YGUndefined", YGUndefined);
   // constant("YGValueAuto", YGValueAuto);
 
   class_<Node>("YGNode")
-    .constructor<>(&Node::createDefault, allow_raw_pointers())
+      .constructor<>(&Node::createDefault, allow_raw_pointers())
 
-    .class_function("createWithConfig", &Node::createWithConfig, allow_raw_pointers())
+      .class_function("createWithConfig", &Node::createWithConfig, allow_raw_pointers())
 
-    .function("insertChild", &Node::insertChild, allow_raw_pointers())
-    .function("removeChild", &Node::removeChild, allow_raw_pointers())
-    .function("getChildCount", &Node::getChildCount)
-    .function("getParent", &Node::getParent, allow_raw_pointers())
-    .function("getChild", &Node::getChild, allow_raw_pointers())
+      .function("insertChild", &Node::insertChild, allow_raw_pointers())
+      .function("removeChild", &Node::removeChild, allow_raw_pointers())
+      .function("getChildCount", &Node::getChildCount)
+      .function("getParent", &Node::getParent, allow_raw_pointers())
+      .function("getChild", &Node::getChild, allow_raw_pointers())
 
-    .function("setMeasureFunc", &Node::setMeasureFunc, allow_raw_pointers())
-    .function("unsetMeasureFunc", &Node::unsetMeasureFunc, allow_raw_pointers())
+      .function("setMeasureFunc", &Node::setMeasureFunc, allow_raw_pointers())
+      .function("unsetMeasureFunc", &Node::unsetMeasureFunc, allow_raw_pointers())
 
-    .function("markDirty", &Node::markDirty)
-    .function("isDirty", &Node::isDirty)
+      .function("markDirty", &Node::markDirty)
+      .function("isDirty", &Node::isDirty)
 
-    .function("calculateLayout", &Node::calculateLayout)
-    .function("getComputedLayout", &Node::getComputedLayout)
+      .function("calculateLayout", &Node::calculateLayout)
+      .function("getComputedLayout", &Node::getComputedLayout)
 
-    .property("hasNewLayout", &Node::hasNewLayout, &Node::setHasNewLayout)
-    
-    EMBIND_NODE_PROP_BINDING(direction, Direction)
-    EMBIND_NODE_PROP_BINDING(flexDirection, FlexDirection)
-    EMBIND_NODE_PROP_BINDING(justifyContent, JustifyContent)
-    EMBIND_NODE_PROP_BINDING(alignContent, AlignContent)
-    EMBIND_NODE_PROP_BINDING(alignItems, AlignItems)
-    EMBIND_NODE_PROP_BINDING(alignSelf, AlignSelf)
-    EMBIND_NODE_PROP_BINDING(position, PositionType)
-    EMBIND_NODE_PROP_BINDING(flexWrap, FlexWrap)
-    EMBIND_NODE_PROP_BINDING(overflow, Overflow)
-    EMBIND_NODE_PROP_BINDING(display, Display)
-    EMBIND_NODE_PROP_BINDING(flex, Flex)
-    EMBIND_NODE_PROP_BINDING(flexGrow, FlexGrow)
-    EMBIND_NODE_PROP_BINDING(flexShrink, FlexShrink)
-    EMBIND_NODE_PROP_BINDING(flexBasis, FlexBasis)
+      .property("hasNewLayout", &Node::hasNewLayout, &Node::setHasNewLayout)
 
-    EMBIND_NODE_PROP_BINDING(left, PositionLeft)
-    EMBIND_NODE_PROP_BINDING(right, PositionRight)
-    EMBIND_NODE_PROP_BINDING(top, PositionTop)
-    EMBIND_NODE_PROP_BINDING(bottom, PositionBottom)
-    EMBIND_NODE_PROP_BINDING(start, PositionStart)
-    EMBIND_NODE_PROP_BINDING(end, PositionEnd)
+          EMBIND_NODE_PROP_BINDING(direction, Direction)
+              EMBIND_NODE_PROP_BINDING(flexDirection, FlexDirection)
+                  EMBIND_NODE_PROP_BINDING(justifyContent, JustifyContent)
+                      EMBIND_NODE_PROP_BINDING(alignContent, AlignContent)
+                          EMBIND_NODE_PROP_BINDING(alignItems, AlignItems)
+                              EMBIND_NODE_PROP_BINDING(alignSelf, AlignSelf)
+                                  EMBIND_NODE_PROP_BINDING(position, PositionType)
+                                      EMBIND_NODE_PROP_BINDING(flexWrap, FlexWrap)
+                                          EMBIND_NODE_PROP_BINDING(overflow, Overflow)
+                                              EMBIND_NODE_PROP_BINDING(display, Display)
+                                                  EMBIND_NODE_PROP_BINDING(flex, Flex)
+                                                      EMBIND_NODE_PROP_BINDING(flexGrow, FlexGrow)
+                                                          EMBIND_NODE_PROP_BINDING(flexShrink, FlexShrink)
+                                                              EMBIND_NODE_PROP_BINDING(flexBasis, FlexBasis)
 
-    EMBIND_NODE_EDGE_PROP_BINDING(margin, Margin)
-    EMBIND_NODE_EDGE_PROP_BINDING(padding, Padding)
-    EMBIND_NODE_EDGE_PROP_BINDING(border, Border)
+                                                                  EMBIND_NODE_PROP_BINDING(left, PositionLeft)
+                                                                      EMBIND_NODE_PROP_BINDING(right, PositionRight)
+                                                                          EMBIND_NODE_PROP_BINDING(top, PositionTop)
+                                                                              EMBIND_NODE_PROP_BINDING(bottom, PositionBottom)
+                                                                                  EMBIND_NODE_PROP_BINDING(start, PositionStart)
+                                                                                      EMBIND_NODE_PROP_BINDING(end, PositionEnd)
 
-    EMBIND_NODE_PROP_BINDING(width, Width)
-    EMBIND_NODE_PROP_BINDING(height, Height)
-    EMBIND_NODE_PROP_BINDING(minWidth, MinWidth)
-    EMBIND_NODE_PROP_BINDING(minHeight, MinHeight)
-    EMBIND_NODE_PROP_BINDING(maxWidth, MaxWidth)
-    EMBIND_NODE_PROP_BINDING(maxHeight, MaxHeight)
+                                                                                          EMBIND_NODE_EDGE_PROP_BINDING(margin, Margin)
+                                                                                              EMBIND_NODE_EDGE_PROP_BINDING(padding, Padding)
+                                                                                                  EMBIND_NODE_EDGE_PROP_BINDING(border, Border)
 
-    EMBIND_NODE_PROP_BINDING(aspectRatio, AspectRatio)
-    ;
+                                                                                                      EMBIND_NODE_PROP_BINDING(width, Width)
+                                                                                                          EMBIND_NODE_PROP_BINDING(height, Height)
+                                                                                                              EMBIND_NODE_PROP_BINDING(minWidth, MinWidth)
+                                                                                                                  EMBIND_NODE_PROP_BINDING(minHeight, MinHeight)
+                                                                                                                      EMBIND_NODE_PROP_BINDING(maxWidth, MaxWidth)
+                                                                                                                          EMBIND_NODE_PROP_BINDING(maxHeight, MaxHeight)
+
+                                                                                                                              EMBIND_NODE_PROP_BINDING(aspectRatio, AspectRatio);
 }
