@@ -6,8 +6,17 @@ OUTPUT_FILENAME="yoga.js"
 # clean up build folder
 rm -rf build && mkdir -p build
 
+build() {
+  if [[ -n "$EMSCRIPTEN_SDK_ENV" ]]; then
+    source $EMSCRIPTEN_SDK_ENV
+    emcc "$@"
+  else
+    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u emscripten -t trzeci/emscripten:sdk-incoming-64bit emcc "$@"
+  fi
+}
+
 # compile to wasm
-docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u emscripten -t trzeci/emscripten:sdk-incoming-64bit emcc \
+build \
   yoga/*.cpp bindings/*.cc \
   --bind -Os --memory-init-file 0 --closure 1 --llvm-lto 1 \
   -fno-exceptions \
