@@ -6,6 +6,7 @@
   "author": "Vincent Riemer",
   "main": "dist/Yoga.cjs.js",
   "module": "dist/Yoga.es.js",
+  "types": "index.d.ts",
   "files": [
     "README.md",
     "dist"
@@ -23,6 +24,7 @@
     "bench": "node tests/run-bench $(find tests/Benchmarks -name '*.js')"
   },
   "devDependencies": {
+    "@types/yoga-layout": "1.9.1",
     "rimraf": "^2.6.2",
     "rollup": "^0.53.2",
     "rollup-plugin-commonjs": "^8.2.6",
