@@ -1,4 +1,4 @@
 [submodule "yoga"]
 	path = yoga
-	url = https://github.com/facebook/yoga/tree/1.18.0/yoga
-	branch = fbyoga
+	url = https://github.com/nagra-opentv/yoga-dom.git
+	branch = fbyoga1.18.0
